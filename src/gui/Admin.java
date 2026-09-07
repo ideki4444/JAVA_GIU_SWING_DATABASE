@@ -823,7 +823,26 @@ public class Admin extends javax.swing.JFrame {
         jLabel49.setText("DELETE");
         jLabel49.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
         jLabel49.setPreferredSize(new java.awt.Dimension(100, 40));
+        jLabel49.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                jLabel49MouseClicked(evt);
+            }
+        });
         room_dashboard.getContentPane().add(jLabel49, new org.netbeans.lib.awtextra.AbsoluteConstraints(810, 510, -1, -1));
+
+        archiveBtn.setFont(new java.awt.Font("SansSerif", 1, 13)); // NOI18N
+        archiveBtn.setForeground(new java.awt.Color(255, 255, 255));
+        archiveBtn.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        archiveBtn.setIcon(new javax.swing.ImageIcon(getClass().getResource("/images/archivebg.png"))); // NOI18N
+        archiveBtn.setText("ARCHIVE");
+        archiveBtn.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        archiveBtn.setPreferredSize(new java.awt.Dimension(100, 40));
+        archiveBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                archiveBtnMouseClicked(evt);
+            }
+        });
+        room_dashboard.getContentPane().add(archiveBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(920, 510, -1, -1));
 
         jPanel20.setBackground(new java.awt.Color(255, 255, 255));
         jPanel20.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
@@ -1990,7 +2009,126 @@ public class Admin extends javax.swing.JFrame {
 
     }//GEN-LAST:event_passwordLoginTextFieldKeyReleased
 
-    public void displayTable_rooms() {
+    private void jLabel49MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jLabel49MouseClicked
+        // DELETE button functionality
+        if (roomTable.getSelectedRowCount() == 0) {
+            JOptionPane.showMessageDialog(null, "Please select a row to delete");
+        } else {
+            int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete this record?", "Delete Confirmation", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    DefaultTableModel model = (DefaultTableModel) roomTable.getModel();
+                    int selectedRowIndex = roomTable.getSelectedRow();
+                    int roomNo = Integer.parseInt(model.getValueAt(selectedRowIndex, 0).toString());
+                    
+                    String sql = "DELETE FROM rooms WHERE room_no = ?";
+                    PreparedStatement pt = con.prepareStatement(sql);
+                    pt.setInt(1, roomNo);
+                    pt.executeUpdate();
+                    
+                    JOptionPane.showMessageDialog(null, "Room deleted successfully!");
+                    displayTable_rooms();
+                } catch (SQLException sqe) {
+                    JOptionPane.showMessageDialog(null, "Error deleting record: " + sqe.getMessage());
+                }
+            }
+        }
+    }//GEN-LAST:event_jLabel49MouseClicked
+
+    private void archiveBtnMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_archiveBtnMouseClicked
+        // ARCHIVE button functionality
+        if (roomTable.getSelectedRowCount() == 0) {
+            JOptionPane.showMessageDialog(null, "Please select a row to archive");
+        } else {
+            int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to archive this record?", "Archive Confirmation", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    // Create archive table if it doesn't exist
+                    String createArchiveTable = "CREATE TABLE IF NOT EXISTS rooms_archive ("
+                            + "archive_id INT AUTO_INCREMENT PRIMARY KEY, "
+                            + "room_no INT, "
+                            + "room_type VARCHAR(50), "
+                            + "room_status VARCHAR(50), "
+                            + "room_description TEXT, "
+                            + "archived_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                            + ")";
+                    st.executeUpdate(createArchiveTable);
+                    
+                    DefaultTableModel model = (DefaultTableModel) roomTable.getModel();
+                    int selectedRowIndex = roomTable.getSelectedRow();
+                    int roomNo = Integer.parseInt(model.getValueAt(selectedRowIndex, 0).toString());
+                    String roomType = model.getValueAt(selectedRowIndex, 1).toString();
+                    String roomStatus = model.getValueAt(selectedRowIndex, 2).toString();
+                    String roomDescription = model.getValueAt(selectedRowIndex, 3).toString();
+                    
+                    // Insert into archive table
+                    String insertArchive = "INSERT INTO rooms_archive (room_no, room_type, room_status, room_description) VALUES (?, ?, ?, ?)";
+                    PreparedStatement pt = con.prepareStatement(insertArchive);
+                    pt.setInt(1, roomNo);
+                    pt.setString(2, roomType);
+                    pt.setString(3, roomStatus);
+                    pt.setString(4, roomDescription);
+                    pt.executeUpdate();
+                    
+                    // Delete from main table
+                    String deleteSql = "DELETE FROM rooms WHERE room_no = ?";
+                    PreparedStatement deleteStmt = con.prepareStatement(deleteSql);
+                    deleteStmt.setInt(1, roomNo);
+                    deleteStmt.executeUpdate();
+                    
+                    JOptionPane.showMessageDialog(null, "Room archived successfully!");
+                    displayTable_rooms();
+                } catch (SQLException sqe) {
+                    JOptionPane.showMessageDialog(null, "Error archiving record: " + sqe.getMessage());
+                }
+            }
+        }
+    }//GEN-LAST:event_archiveBtnMouseClicked
+
+    public void displayTable_archive() {
+        try {
+            // Check if archive table exists
+            String checkTable = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'guiapp' AND table_name = 'rooms_archive'";
+            rs = st.executeQuery(checkTable);
+            rs.next();
+            int tableExists = rs.getInt(1);
+            
+            if (tableExists == 0) {
+                JOptionPane.showMessageDialog(null, "No archived records found");
+                return;
+            }
+            
+            rs = st.executeQuery("SELECT archive_id, room_no, room_type, room_status, room_description, archived_date FROM rooms_archive");
+            
+            JFrame archiveFrame = new JFrame("Archived Rooms");
+            archiveFrame.setSize(800, 400);
+            archiveFrame.setLocationRelativeTo(null);
+            
+            javax.swing.JTable archiveTable = new javax.swing.JTable();
+            DefaultTableModel model = new DefaultTableModel(
+                new Object[][]{},
+                new String[]{"Archive ID", "Room No", "Room Type", "Room Status", "Description", "Archived Date"}
+            );
+            archiveTable.setModel(model);
+            archiveTable.setRowHeight(30);
+            
+            while (rs.next()) {
+                Object row[] = {rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getTimestamp(6)};
+                model.addRow(row);
+            }
+            
+            javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(archiveTable);
+            archiveFrame.add(scrollPane);
+            archiveFrame.setVisible(true);
+            
+        } catch (SQLException sqe) {
+            JOptionPane.showMessageDialog(null, "Error loading archived records: " + sqe.getMessage());
+        }
+    }
+
+    /**
+     * @param args the command line arguments
+     */
         try {
             rs = st.executeQuery("SELECT room_no,room_type,room_status,room_description from rooms");
 
@@ -2048,6 +2186,7 @@ public class Admin extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JLabel accountbtn;
     private javax.swing.JLabel addBtn;
+    private javax.swing.JLabel archiveBtn;
     private javax.swing.JFrame add_form;
     private javax.swing.JLabel add_form_room_add;
     private javax.swing.JTextArea add_form_room_description_TA;
